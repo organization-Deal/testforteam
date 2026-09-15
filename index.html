@@ -1605,7 +1605,7 @@
     return {correct, total: questions.length, pct, details};
   }
 
-  function showResults(){
+  async function showResults(){
     const {correct,total,pct,details} = grade();
     const name = (nameEl.value || "").trim();
     const level = levelFromPct(pct);
@@ -1665,6 +1665,26 @@
       `;
     });
 
+    // Save exam attempt to Cloudflare D1 via Pages Function.
+    // Timestamp is created server-side so users cannot spoof it from the browser.
+    const wrong = details.filter(d => !d.ok).map(d => ({
+      no: d.no,
+      picked: d.picked,
+      answer: d.answer,
+      question: getQuestion(d.no).question
+    }));
+    try {
+      const res = await fetch("/api/results", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({name, correct, total, pct, wrong})
+      });
+      if(!res.ok) throw new Error("save_failed");
+    } catch (err) {
+      console.error("Could not save exam result", err);
+      alert("คะแนนแสดงได้ตามปกติ แต่บันทึกเข้า Backoffice ไม่สำเร็จ กรุณาแจ้งผู้ดูแลระบบ");
+    }
+
     window.scrollTo({top:0, behavior:"smooth"});
   }
 
@@ -1679,6 +1699,12 @@
 
   // ---------- Events ----------
   submitBtn.addEventListener("click", ()=>{
+    const examName = (nameEl.value || "").trim();
+    if(!examName){
+      alert("กรุณาใส่ชื่อผู้สอบก่อนส่งคำตอบ");
+      nameEl.focus();
+      return;
+    }
     if(submitted){
       alert("ส่งคำตอบไปแล้ว ถ้าจะทำใหม่ให้กด “เริ่มใหม่”");
       return;
